@@ -102,3 +102,5 @@ Content:
         }
 
 Sometimes there will be some other violations, because the usleep() call may lead to unseen interleavings. 
+The Relaxing procedure can be used to resolve this problem. (Introduced in `performance/pbzip2/README`)
+
