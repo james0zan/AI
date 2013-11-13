@@ -1,0 +1,23 @@
+--- build/rules.mk.in	2013-10-31 15:07:43.571743812 +0800
++++ build/rules.mk.in.tolerate	2013-10-31 14:42:18.207848731 +0800
+@@ -203,16 +203,16 @@
+ 	$(COMPILE) -c $<
+ 
+ .c.lo:
+-	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=$(AI_ARCHIVE_DIR)/performance/apache/httpd-2.4.6/install/sanitized-bset.txt -AIRelax=1 <$*-Marked.bc >$*-Relax.bc
+-	llc $*-Relax.bc -o $*.s
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=$(AI_ARCHIVE_DIR)/performance/apache/httpd-2.4.6/install/sanitized-bset.txt <$*-Marked.bc >$*-Tolerate.bc
++	llc $*-Tolerate.bc -o $*.s
+ 	$(LIBTOOL) --mode=compile $(CC) $(PICFLAGS) $(LTCFLAGS) -c $*.s && touch $@
+ 
+ .s.lo:
+ 	$(LT_COMPILE)
+ 
+ .c.slo:
+-	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=$(AI_ARCHIVE_DIR)/performance/apache/httpd-2.4.6/install/sanitized-bset.txt -AIRelax=1 <$*-Marked.bc >$*-Relax.bc
+-	llc $*-Relax.bc -o $*.s
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=$(AI_ARCHIVE_DIR)/performance/apache/httpd-2.4.6/install/sanitized-bset.txt <$*-Marked.bc >$*-Tolerate.bc
++	llc $*-Tolerate.bc -o $*.s
+ 	$(LIBTOOL) --mode=compile $(CC) -DLINUX -D_REENTRANT -D_GNU_SOURCE  $(ALL_INCLUDES) $(SHLTCFLAGS) -c $< && touch $@
+ 
+ .$(CXX_SUFFIX).lo:

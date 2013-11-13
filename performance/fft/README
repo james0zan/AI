@@ -1,0 +1,52 @@
+===========================
+Description
+===========================
+
+The FFT application is a complex, one-dimensional version of the "Six-Step" FFT.
+It is extracted from splash2 benchmarks (in parsec-3.0)
+
+We use it as an example for demonstrating AI's performance on highly compute-intensive applications,
+and the bias instrumentation.
+
+===========================
+Compile
+===========================
+
+  cd $AI_ARCHIVE_DIR/performance/fft
+  make train
+  # Since instrumenting all the memory accesses may incur high overhead,
+  # the first round of train are used only for obtaining the shared memory accesses.
+  # Accelerating this procedure by using a static shared 
+  # variable identification method is in the TODO list.
+  # This step may take a long period of time.
+  # Don't worry, we are relaxing the bsets to reduce false positives.
+  make train2
+  
+  make test
+
+  # Now you can test the overhead by yourself with
+  # the native app fft.native and
+  # the instrumented app fft.instrumented.
+  # Or you can use our test framework.
+  python run.py test 20 ./fft
+
+  # Bias
+  $AI_HOME/build/tools/ins-count 20 trace2 fft.BSet >fft.group
+  make bias
+
+  # Similar to `test`, you can test the overhead by yourself with
+  # the native app fft.native and
+  # the instrumented app fft.bias.
+  # Or you can use our test framework.
+  python run.py bias 20 ./fft
+  
+
+===========================
+Expected Results
+===========================
+
+Average Overhead: 9.119579 ~ 14.452933
+Average Overhead after Using Bias Instrumentation: 0.632546 ~ 1.159328
+
+A screencast of our experiment is given in http://asciinema.org/a/6192. (non-anonymous)
+

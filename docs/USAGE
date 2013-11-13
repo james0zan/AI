@@ -1,0 +1,136 @@
+===========================
+Usage of AI
+===========================
+
+---------------------------
+Overview
+---------------------------
+
+AI is consisting of three LLVM passes, a runtime library, and several tools.
+After building, they are stored in `$AI_HOME/build/llvm/AI/LLVMAI*.so`, 
+`$AI_HOME/build/ai-rt/libai.a`, and `$AI_HOME/build/tools/` respectively.
+
+---------------------------
+Typical Workflow
+---------------------------
+
+*Caveat:* Please check the following environment variables are set before using AI.
+
+    #!/usr/bin/env bash
+    export AI_ARCHIVE_DIR=/path/to/the/directory/of/the/decompressed/ai/archive
+    export AI_HOME=$AI_ARCHIVE_DIR/ai
+    export LD_LIBRARY_PATH=$AI_HOME/build/ai-rt/:$LD_LIBRARY_PATH
+    export LIBRARY_PATH=$AI_HOME/build/ai-rt/:$LIBRARY_PATH
+
+In this section, we will use the simple synthetic atomicity violation given in 
+`demo/simple-atomic/example.cc` to demonstrate the typical workflow of AI.
+
+`example.cc` contains two threads that concurrently perform an incremental operation to a shared variable (initialized as 0), and checks whether the result is 2.
+In order to facilitate the demonstration, we add several usleep() calls to control the exposure of the bug.
+In general, the final assertion will fail if the code is compiled with the `-DTRIGGERTHEBUG` flag.
+Otherwise, there will be a correct run.
+
+
+Step 1: Generate LLVM IR
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    cd $AI_ARCHIVE_DIR/demo/simple-atomic
+    $AI_ARCHIVE_DIR/llvm/install/bin/clang++ -O0 -g -emit-llvm -c example.cc -o example.bc
+
+The `-g` flag is required to enable the use of extra debugging information.
+
+Step 2: Perform the AIPrepare pass
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    $AI_HOME/build/tools/id-server ex.AccessInfo &
+    $AI_ARCHIVE_DIR/llvm/install/bin/opt -load=$AI_HOME/build/llvm/AI/LLVMAIPrepare.so -AIPrepare <example.bc >example-Marked.bc
+    killall id-server
+
+Since the AIPrepare pass needs to assign an universally unique access ID to each load/store instruction,
+we build it with a client–server model.
+An `id-server` should be started beforehand to listen to an UDP socket.
+It will respond with a unique ID if the AIPrepare pass sends an instruction's information to it.
+This is very useful when compiling a project that is consisting of multiple files.
+
+If you use the `llvm-dis` tool to transform the `example-Marked.bc` into a readable formation, 
+you will see that every load/store instruction is attached with a `AIMemoryAccessID` meta data,
+which stores its access ID.
+
+The generated `ex.AccessInfo` can be used to map the AIMemoryAccessID to the corresponding instruction information.
+Each line of it is a tuple of:
+
+    Access ID | is Write? | Type Size (i1, i32, ..) | Line Of Code | File Name | File Dir
+
+Step 3: Perform the AITrace pass
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    $AI_ARCHIVE_DIR/llvm/install/bin/opt -load=$AI_HOME/build/llvm/AI/LLVMAITrace.so -AITrace <example-Marked.bc >example-Trace.bc
+    $AI_ARCHIVE_DIR/llvm/install/bin/llc example-Trace.bc -o example-Trace.s
+    $AI_ARCHIVE_DIR/llvm/install/bin/clang++ example-Trace.s -o example.trace -lai -lpthread
+
+The `example.trace` file can be used to generated trace files.
+Once executed, it will output the trace to a file named `trace.bin` in the current directory.
+(It will also generate a `whitelist.mem` file, which can be ignored in this example.
+More detail information about the white list file can be found in `api/README`.)
+
+Step 4: Training and Computing BSets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    # Training
+    for ((i=0; i<10; i++)); do \
+      ./example.trace; \
+      mv trace.bin trace.$i; \
+    done
+    # Compute Bsets
+    $AI_HOME/build/tools/trace2bset 10 trace ex.AccessInfo ex.BSet
+    # Sanitize Bsets
+    $AI_HOME/build/tools/sanitize-bset ex.BSet
+
+The outputed `sanitized-bset.txt` is the generated belonging sets.
+And the `sanitized-bset.bin` file is its binary version.
+
+Step 5: Bug Tolerating
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    # Convert the TRIGGERED version of C++ code to LLVM IR
+    $AI_ARCHIVE_DIR/llvm/install/bin/clang++ -DTRIGGERTHEBUG -g -emit-llvm -c example.cc -o example-triggered.bc
+
+    # Build the triggered executable
+    $AI_ARCHIVE_DIR/llvm/install/bin/llc example-triggered.bc -o example-triggered.s
+    $AI_ARCHIVE_DIR/llvm/install/bin/clang++ example-triggered.s -o example.triggered -lpthread
+
+    # Start the `id-server` again
+    $AI_HOME/build/tools/id-server ex-triggered.AccessInfo &
+    # Perform the AIPrepare pass
+    # Since only the value of global variables are altered,
+    # the AIPrepare pass is assumed to assign the same ID to these two version of code.
+    $AI_ARCHIVE_DIR/llvm/install/bin/opt -load=$AI_HOME/build/llvm/AI/LLVMAIPrepare.so -AIPrepare <example-triggered.bc >example-triggered-Marked.bc
+    # Stop the `id-server`
+    killall id-server
+
+    # Perform the AITolerate pass
+    $AI_ARCHIVE_DIR/llvm/install/bin/opt -load=$AI_HOME/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=sanitized-bset.txt <example-triggered-Marked.bc >example-Tolerate.bc
+    # Compile to the executable
+    $AI_ARCHIVE_DIR/llvm/install/bin/llc example-Tolerate.bc -o example-Tolerate.s
+    $AI_ARCHIVE_DIR/llvm/install/bin/clang++ example-Tolerate.s -o example.tolerated -lai -lpthread
+
+If you execute the `example.triggered` file, you will get an assertion fail.
+And if you run the `example.tolerated` (make sure that the `sanitized-bset.bin` file is in the current directory), you will find that the bug is tolerated.
+
+The execution of `example.tolerated` will also generate a `violations.bin` file,
+which can be transformed to a readable formation by using the `read-violations` tool.
+
+    $AI_HOME/build/tools/read-violations ex.AccessInfo sanitized-bset.txt violations.bin >violations.txt
+
+---------------------------
+Demos
+---------------------------
+
+AI can be used to detect and tolerate both atomicity violations and order violations.
+Thus we present a synthetic example of each kind to demonstrate the usages.
+We also provide a well-know real-world bug example from pbzip2 (which is easy to build and test).
+
+More information can be found in the `README` file placed at the corresponding directory.
+
+We acknowledge Jie Yu (jieyu@umich.edu) and Brandon Lucia (Brandon.Lucia@microsoft.com) for their collection of the real-world concurrency bugs.
+

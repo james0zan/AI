@@ -1,0 +1,88 @@
+===========================
+Description
+===========================
+
+The `example.cc` demonstrates a simple synthetic order violation.
+It contains two threads that concurrently assign a shared variable.
+We assume that the assignment from main thread should also before 
+the assignment from the child thread.
+
+In order to facilitate the demonstration, 
+we add several usleep() calls to control the exposure of the bug.
+In general, if the bug is triggered (i.e. compiled with `-DTRIGGERTHEBUG` flag),
+the final assertion will fail.
+Otherwise, there will be a correct run.
+
+
+===========================
+Compile
+===========================
+
+  cd $AI_ARCHIVE_DIR/demo/simple-order
+  make train
+  make tolerated
+
+  ./example.triggered 
+  ./example.tolerated # The `sanitized-bset.bin` file should be placed in the current directory.
+  $AI_HOME/build/tools/read-violations ex.AccessInfo sanitized-bset.txt violations.bin >violations.txt
+
+
+===========================
+Expected Results
+===========================
+
+1. The generated file `ex.AccessInfo` and `ex-triggered.AccessInfo` are the same.
+2. An assertion fail will arise when executing `./example.triggered`.
+3. A violation is reported when executing `./example.tolerated`, but the execution is not failed.
+
+===========================
+Expected violations.txt
+===========================
+
+--------------------------
+ Tolerated Violation 
+--------------------------
+
+>> The RPre of Access:
+
+Access ID:  1
+Type: Write
+Line: 19
+File: /root/archive/archive/demo/simple-order/example.cc
+Content:
+  
+  int data = 0;
+  
+  void *add(void *v) {
+    usleep(TIME_TRIGGER_1);
+**  data = 2;
+    return NULL;
+  }
+  
+  int main() {
+    pthread_t tid;
+
+>> Is:
+
+(nil)
+
+>> Not Belongs to Its BSet:
+
+Access ID:  2
+Type: Write
+Line: 28
+File: /root/archive/archive/demo/simple-order/example.cc
+Content:
+  int main() {
+    pthread_t tid;
+    pthread_create(&tid, NULL, add, NULL);
+  
+    usleep(TIME_TRIGGER_2);
+**  data = 1;
+  
+    pthread_join(tid, NULL);
+    printf("Data: %d\n", data);
+    assert(data == 2);
+  }
+
+

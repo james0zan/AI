@@ -1,0 +1,246 @@
+===========================
+Description
+===========================
+
+The `test.cc` is a simple example that demonstrates the usages of our given APIs.
+
+In which, 
+1) the AI_INS_THIS_ADDR() function is used to tell AI that 
+all the instructions that access to this address should be instrumented; 
+and 2) the AI_INS_THIS_FUNC and AI_INS_THIS_BB macros are given to state that 
+AI should instrument all the shared memory accesses belong to this function (or basic block).
+
+
+===========================
+Workflow
+===========================
+
+  cd $AI_ARCHIVE_DIR/api
+  make train
+
+  # The generated `whitelist.ins` file stores the required instructions stated by 
+  # AI_INS_THIS_FUNC and AI_INS_THIS_BB macros.
+  # You can change it to a radable formation by using the `read-whitelist` tool.
+  $AI_HOME/build/tools/read-whitelist test.AccessInfo whitelist.ins >whitelist.ins.txt
+
+  # The `whitelist.mem.*` files stores the memory address pass to 
+  # AI_INS_THIS_ADDR() function. They will be used by the `ins-count` tool.
+  $AI_HOME/build/tools/ins-count 10 trace test.BSet >test.group
+
+  # You can change the `test.group` file to a radable formation by using the 
+  # `read-ins-group` tool.
+  # In which, you can find that the group of instructions which access variable `data1`
+  # has an ins-proportion of -1.
+  $AI_HOME/build/tools/read-ins-group test.AccessInfo test.group >test.group.txt
+
+  # Now build the custom BSet with bias threshold 0 
+  # (which means we only instrument the instructions in the white list)
+  $AI_HOME/build/tools/custom-trace2bset 10 trace test.AccessInfo test.group 0 whitelist.ins test.custom.BSet
+
+  # If you look into the generated `test-Custom.ll` file,
+  # You can find that the access to `data3` from `child2` function is not instrumented.
+  make custom
+  
+
+
+===========================
+Expected whitelist.ins.txt
+===========================
+
+================
+
+Access ID:  1
+Type: Write
+Line: 11
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  int data1=0, data2=0, data3=0;
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+**  data1 = 1;
+    data2 = 2;
+    data3 = 3;
+    return NULL;
+  }
+  
+================
+
+Access ID:  2
+Type: Write
+Line: 12
+File: /root/archive/archive/api/test.cc
+Content:
+  int data1=0, data2=0, data3=0;
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+    data1 = 1;
+**  data2 = 2;
+    data3 = 3;
+    return NULL;
+  }
+  
+  void *child2(void *v) {
+================
+
+Access ID:  3
+Type: Write
+Line: 13
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+    data1 = 1;
+    data2 = 2;
+**  data3 = 3;
+    return NULL;
+  }
+  
+  void *child2(void *v) {
+    data1 = 1;
+================
+
+Access ID:  5
+Type: Write
+Line: 21
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  void *child2(void *v) {
+    data1 = 1;
+    do {
+      AI_INS_THIS_BB
+**    data2 = 2;
+    } while (0);
+    data3 = 3;
+    return NULL;
+  }
+  
+===========================
+Expected test.group.txt
+===========================
+
+==========================
+ Group 1 
+==========================
+
+Access ID:  1
+Type: Write
+Line: 11
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  int data1=0, data2=0, data3=0;
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+**  data1 = 1;
+    data2 = 2;
+    data3 = 3;
+    return NULL;
+  }
+  
+
+Access ID:  4
+Type: Write
+Line: 18
+File: /root/archive/archive/api/test.cc
+Content:
+    data3 = 3;
+    return NULL;
+  }
+  
+  void *child2(void *v) {
+**  data1 = 1;
+    do {
+      AI_INS_THIS_BB
+      data2 = 2;
+    } while (0);
+    data3 = 3;
+
+Proportion: -1.00000000000000000000 0.24999999999999997224
+
+==========================
+ Group 2 
+==========================
+
+Access ID:  2
+Type: Write
+Line: 12
+File: /root/archive/archive/api/test.cc
+Content:
+  int data1=0, data2=0, data3=0;
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+    data1 = 1;
+**  data2 = 2;
+    data3 = 3;
+    return NULL;
+  }
+  
+  void *child2(void *v) {
+
+Access ID:  5
+Type: Write
+Line: 21
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  void *child2(void *v) {
+    data1 = 1;
+    do {
+      AI_INS_THIS_BB
+**    data2 = 2;
+    } while (0);
+    data3 = 3;
+    return NULL;
+  }
+  
+
+Proportion: 0.33333333333333331483  0.24999999999999997224
+
+==========================
+ Group 3 
+==========================
+
+Access ID:  3
+Type: Write
+Line: 13
+File: /root/archive/archive/api/test.cc
+Content:
+  
+  void *child1(void *v) {
+    AI_INS_THIS_FUNC
+    data1 = 1;
+    data2 = 2;
+**  data3 = 3;
+    return NULL;
+  }
+  
+  void *child2(void *v) {
+    data1 = 1;
+
+Access ID:  6
+Type: Write
+Line: 23
+File: /root/archive/archive/api/test.cc
+Content:
+    data1 = 1;
+    do {
+      AI_INS_THIS_BB
+      data2 = 2;
+    } while (0);
+**  data3 = 3;
+    return NULL;
+  }
+  
+  int main() {
+    AI_INS_THIS_ADDR(&data1);
+
+Proportion: 0.33333333333333331483  0.24999999999999997224
+
+

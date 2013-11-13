@@ -1,0 +1,104 @@
+Acknowledge: Jie Yu (jieyu@umich.edu)
+
+===========================
+Description
+===========================
+
+This is a real-world order violation contained in pbzip2-0.9.4.
+More detailed description can be found in: 
+https://github.com/jieyu/concurrency-bugs/tree/master/pbzip2-0.9.4
+
+In order to facilitate the demonstration, 
+we add several usleep() calls to control the exposure of the bug.
+In general, if the bug is triggered (i.e. compiled with `-DTRIGGERTHEBUG` flag),
+the application will result into a Segmentation fault.
+Otherwise, there will be a correct run.
+
+
+===========================
+Compile
+===========================
+
+  cd $AI_ARCHIVE_DIR/demo/pbzip2-0.9.4
+  make train
+  make tolerated
+
+  ./pbzip2.triggered -k -f -p4 ./test.tar
+  ./pbzip2.tolerated -k -f -p4 ./test.tar # The `sanitized-bset.bin` file should be placed in the current directory.
+  $AI_HOME/build/tools/read-violations pbzip2.AccessInfo sanitized-bset.txt violations.bin >violations.txt
+
+
+===========================
+Expected Results
+===========================
+
+1. The generated file `pbzip2.AccessInfo` and `pbzip2-triggered.AccessInfo` are the same.
+2. A segmentation fault will arise when executing `./pbzip2.triggered`.
+3. A violation is reported when executing `./pbzip2.tolerated`, but the execution is not failed.
+
+===========================
+Expected violations.txt
+===========================
+
+--------------------------
+ Tolerated Violation 
+--------------------------
+
+>> The RPre of Access:
+
+Access ID:  724
+Type: Read
+Line: 1053
+File: /root/archive/archive/demo/pbzip2-0.9.4/pbzip2.cpp
+Content:
+  void queueDelete (queue *q)
+  {
+    if (q == NULL)
+      return;
+  
+**  if (q->mut != NULL)
+    {
+      pthread_mutex_destroy(q->mut);
+      delete q->mut;
+      q->mut = NULL;
+    }
+
+>> Is:
+
+Access ID:  594
+Type: Read
+Line: 897
+File: /root/archive/archive/demo/pbzip2-0.9.4/pbzip2.cpp
+Content:
+  
+    fifo = (queue *)q;
+  
+    for (;;)
+    {
+**    pthread_mutex_lock(fifo->mut);
+      while (fifo->empty)
+      {
+        #ifdef PBZIP_DEBUG
+        printf ("consumer: queue EMPTY.\n");
+        #endif
+
+>> Not Belongs to Its BSet:
+
+Access ID:  599
+Type: Read
+Line: 906
+File: /root/archive/archive/demo/pbzip2-0.9.4/pbzip2.cpp
+Content:
+        printf ("consumer: queue EMPTY.\n");
+        #endif
+        if (allDone == 1)
+        {
+          usleep(TIME_TRIGGER);
+**        pthread_mutex_unlock(fifo->mut);
+          #ifdef PBZIP_DEBUG
+          printf ("consumer: exiting2\n");
+          #endif
+          return (NULL);
+        }
+
+Sometimes there will be some other violations, because the usleep() call may lead to unseen interleavings. 

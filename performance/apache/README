@@ -1,0 +1,111 @@
+===========================
+Description
+===========================
+
+The Apache HTTP Server is a popular thread-based http server. 
+We use it as an example for demonstrating AI's performance on server applications.
+
+===========================
+Compile
+===========================
+*Tips:* If the `configure` file saies that ARP, APR Util or pcre is not found, please install them and indicate the actual path with `--with-apr`, `--with-apr-util` or "--with-pcre=".
+
+  # Install httperf
+  apt-get install httperf
+
+  cd $AI_ARCHIVE_DIR/performance/apache
+  tar -xjf httpd-2.4.6.tar.bz2
+  cd httpd-2.4.6
+  mkdir -p install/native
+  mkdir -p install/trace
+  mkdir -p install/relax
+  mkdir -p install/instrumented
+  export PATH=$PATH:$AI_ARCHIVE_DIR/llvm/install/bin
+
+  # Build the Native Version
+  
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6
+  # Patch the ./configure file to close all the compiler optimization
+  chmod a+w ./configure
+  patch -p0 <../configure.patch
+  CFLAGS="-O0 -g -w" ./configure --prefix=`pwd`/install/native --with-mpm=worker # --with-apr=/usr/local/apr --with-apr-util=/usr/local/apr-util/ --with-pcre=/usr/local/pcre
+  make
+  make install
+  make clean
+  Edit the configure file in `install/native/conf/httpd.conf` arccording to you status.
+
+  # Build the Trace Version
+  
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6
+  # Patch the `build/rules.mk.in` file
+  chmod a+w build/rules.mk.in 
+  patch -p0 <../rules.mk.in.trace.patch
+  CFLAGS="-O0 -g -w" LIBS="-lai -lpthread" LDFLAGS="-lai -lpthread" ./configure --prefix=`pwd`/install/trace --with-mpm=worker # --with-apr=/usr/local/apr --with-apr-util=/usr/local/apr-util/ --with-pcre=/usr/local/pcre
+  $AI_HOME/build/tools/id-server httpd.AccessInfo &
+  # Parallel compilation is not recommended, although it will do no harm in the most case.
+  make
+  killall id-server
+  make install
+  make clean
+  Edit the configure file in `install/trace/conf/httpd.conf` arccording to you status.
+
+  # Training
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6/install/
+  python ../../run.py train 10 bin/httpd 127.0.0.1 [Listen Port]
+  # Compute Bsets
+  $AI_HOME/build/tools/trace2bset 10 trace ../httpd.AccessInfo httpd.BSet
+  # Sanitize Bsets
+  $AI_HOME/build/tools/sanitize-bset httpd.BSet
+
+  # Build the Relaxing Version
+
+  # We need the *-Marked.bc generated before to build the tolerate version.
+  # Do not delete them. (They will not be clear by `make clean`)
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6/
+  patch -p0 <../rules.mk.in.relax.patch
+  CFLAGS="-O0 -g -w" LIBS="-lai -lpthread" LDFLAGS="-lai -lpthread" ./configure --prefix=`pwd`/install/relax --with-mpm=worker # --with-apr=/usr/local/apr --with-apr-util=/usr/local/apr-util/ --with-pcre=/usr/local/pcre
+  make
+  make install
+  make clean
+  Edit the configure file in `relax/trace/conf/httpd.conf` arccording to you status.
+
+  # Build the Tolerate Version
+
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6
+  # Patch the `build/rules.mk.in` file again
+  # Make sure that the `$AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6/install/sanitized-bset.txt`
+  # file is exist.
+  patch -p0 <../rules.mk.in.tolerate.patch
+  CFLAGS="-O0 -g -w" LIBS="-lai -lpthread" LDFLAGS="-lai -lpthread" ./configure --prefix=`pwd`/install/instrumented --with-mpm=worker # --with-apr=/usr/local/apr --with-apr-util=/usr/local/apr-util/ --with-pcre=/usr/local/pcre
+  make
+  make install
+  Edit the configure file in `instrumented/trace/conf/httpd.conf` arccording to you status.
+
+  # Relaxing
+  # Relaxing the BSets, used to reduce false positives
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6/install/
+  python ../../run.py relax 500 bin/httpd 127.0.0.1 [Listen Port]
+  
+
+  # Test
+
+  # Now you can test the overhead by yourself with
+  # the native app `install/native/bin/httpd` and
+  # the instrumented app `install/instrumented/bin/httpd`.
+  # Or you can use our test framework.
+  cd $AI_ARCHIVE_DIR/performance/apache/httpd-2.4.6/install/
+  # Make sure that the `sanitized-bset.bin` file is in the current directory
+  # when executing `install/instrumented/bin/httpd`
+  python ../../run.py test 10 bin/httpd 127.0.0.1 [Listen Port]
+
+===========================
+Expected Results
+===========================
+
+In our experiments, the result is:
+Average Overhead: 0.000000 ~ 0.003492
+
+A screencast of our experiment is given in http://asciinema.org/a/6200. (non-anonymous)
+Since the accuracy of httperf is not very high, the overhead of AI is 0.000000 in many cases.
+
+If there is an abnormally high overhead, it means that the relaxing is not sufficient.

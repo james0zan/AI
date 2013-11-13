@@ -1,0 +1,62 @@
+===========================
+Overview
+===========================
+
+Anticipating Invariant (AI) is a novel invariant that can 
+anticipate the concurrency bugs (CBugs) before their real occurrence.
+It enables the users to forestall the failures caused by CBugs 
+with a simple thread stalling technique, rather than resort to roll-back.
+
+In this package, we present:
+1) the source code of our LLVM-based AI implementation (`ai/*`);
+2) several demos for demonstrating AI's ability of tolerating CBugs (`demo/*`);
+3) applications from different categories (desktop, server, hpc) for evaluating AI's overhead (`performance/*`);
+and 4) an example of the APIs' usage (`api/*`).
+
+Documentations, screencasts and some auxiliary scripts are also provided.
+
+===========================
+Documentation
+===========================
+
+The documentations of AI are distributed in:
+1) the files under the `doc/` directory;
+2) the `README` file of each subdirectory;
+and 3) the annotations in the `Makefile` file.
+
+A recommended oder of reading these documentations is given below:
+
++-----------------------------+
+|         docs/BUILD          |    # How to build AI.
++-----------------------------+
+            |
+            v 
++-----------------------------+
+|         docs/USAGE          |    # How to use AI.
++-----------------------------+ 
+            |
+            v
++-----------------------------+
+|       demo/*/README         |    # The procedure of building and running demos.
++-----------------------------+ 
+            |
+            v
++-----------------------------+
+|  performance/pbzip2/README  |    # AI's overhead on desktop application. How to relax BSets.
++-----------------------------+   
+            |
+            v
++-----------------------------+
+|  performance/apache/README  |    # AI's overhead on server application. 
++-----------------------------+ 
+            |
+            v  
++-----------------------------+
+|   performance/fft/README    |    # AI's overhead on hpc application. Bias instrumentation.
++-----------------------------+ 
+            |
+            v 
++-----------------------------+
+|         api/README          |    # The usage of AI's APIs.
++-----------------------------+      
+

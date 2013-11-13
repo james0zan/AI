@@ -1,0 +1,10 @@
+--- ./configure.old	2013-10-30 19:44:51.266863791 +0800
++++ ./configure	2013-10-30 19:47:49.255519046 +0800
+@@ -32287,6 +32287,7 @@
+     CFLAGS="$apr_ste_save_CFLAGS"
+   fi
+ fi
++EXTRA_CFLAGS=""
+ if test "x$silent" != "xyes"; then
+   echo "  restoring CFLAGS to \"$CFLAGS\""
+   echo "  setting EXTRA_CFLAGS to \"$EXTRA_CFLAGS\""

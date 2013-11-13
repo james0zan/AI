@@ -1,0 +1,103 @@
+===========================
+Description
+===========================
+
+The `example.cc` demonstrates a simple synthetic atomicity violation.
+It contains two threads that concurrently perform an incremental operation to a shared variable 
+(initialized as 0), and checks whether the result is 2.
+
+In order to facilitate the demonstration, 
+we add several usleep() calls to control the exposure of the bug.
+In general, if the bug is triggered (i.e. compiled with `-DTRIGGERTHEBUG` flag),
+the final assertion will fail.
+Otherwise, there will be a correct run.
+
+
+===========================
+Compile
+===========================
+
+  cd $AI_ARCHIVE_DIR/demo/simple-atomic
+  make train
+  make tolerated
+
+  ./example.triggered 
+  ./example.tolerated # The `sanitized-bset.bin` file should be placed in the current directory.
+  $AI_HOME/build/tools/read-violations ex.AccessInfo sanitized-bset.txt violations.bin >violations.txt
+
+
+===========================
+Expected Results
+===========================
+
+1. The generated file `ex.AccessInfo` and `ex-triggered.AccessInfo` are the same.
+2. An assertion fail will arise when executing `./example.triggered`.
+3. A violation is reported when executing `./example.tolerated`, but the execution is not failed.
+
+===========================
+Expected violations.txt
+===========================
+
+--------------------------
+ Tolerated Violation 
+--------------------------
+
+>> The RPre of Access:
+
+Access ID:  1
+Type: Read
+Line: 27
+File: /root/archive/archive/demo/simple-atomic/example.cc
+Content:
+  
+  int data = 0;
+  
+  void *add(void *v) {
+    usleep(TIME_TRIGGER_1);
+**  int tmp = data;
+    usleep(TIME_TRIGGER_2);
+    data = tmp + 1;
+    return NULL;
+  }
+  
+
+>> Is:
+
+Access ID:  5
+Type: Read
+Line: 38
+File: /root/archive/archive/demo/simple-atomic/example.cc
+Content:
+  int main() {
+    pthread_t tid;
+    pthread_create(&tid, NULL, add, NULL);
+  
+    usleep(TIME_TRIGGER_3);
+**  int tmp = data;
+    usleep(TIME_TRIGGER_4);
+    data = tmp + 1;
+  
+    pthread_join(tid, NULL);
+    printf("Data: %d\n", data);
+
+>> Not Belongs to Its BSet:
+
+Access ID:  8
+Type: Write
+Line: 40
+File: /root/archive/archive/demo/simple-atomic/example.cc
+Content:
+    pthread_create(&tid, NULL, add, NULL);
+  
+    usleep(TIME_TRIGGER_3);
+    int tmp = data;
+    usleep(TIME_TRIGGER_4);
+**  data = tmp + 1;
+  
+    pthread_join(tid, NULL);
+    printf("Data: %d\n", data);
+    assert(data == 2);
+  }
+
+
+

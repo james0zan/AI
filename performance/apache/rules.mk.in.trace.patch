@@ -1,0 +1,26 @@
+--- build/rules.mk.in	2012-09-26 22:30:31.000000000 +0800
++++ build/rules.mk.in.trace	2013-10-30 20:20:23.354628083 +0800
+@@ -203,13 +203,21 @@
+ 	$(COMPILE) -c $<
+ 
+ .c.lo:
+-	$(LT_COMPILE)
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(ALL_INCLUDES) -emit-llvm -c $< -o $*.bc
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAIPrepare.so -AIPrepare <$*.bc >$*-Marked.bc
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITrace.so -AITrace <$*-Marked.bc >$*-Trace.bc
++	llc $*-Trace.bc -o $*.s
++	$(LIBTOOL) --mode=compile $(CC) $(PICFLAGS) $(LTCFLAGS) -c $*.s && touch $@
+ 
+ .s.lo:
+ 	$(LT_COMPILE)
+ 
+ .c.slo:
+-	$(SH_COMPILE)
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang $(ALL_CFLAGS) $(ALL_CPPFLAGS) $(ALL_INCLUDES) -emit-llvm -c $< -o $<.bc -o $*.bc
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAIPrepare.so -AIPrepare <$*.bc >$*-Marked.bc
++	$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITrace.so -AITrace <$*-Marked.bc >$*-Trace.bc
++	llc $*-Trace.bc -o $*.s
++	$(LIBTOOL) --mode=compile $(CC) -DLINUX -D_REENTRANT -D_GNU_SOURCE  $(ALL_INCLUDES) $(SHLTCFLAGS) -c $< && touch $@
+ 
+ .$(CXX_SUFFIX).lo:
+ 	$(LT_CXX_COMPILE)

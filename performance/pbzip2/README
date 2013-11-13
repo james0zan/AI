@@ -1,0 +1,38 @@
+===========================
+Description
+===========================
+
+PBZIP2 is a popular parallel implementation of the bzip2 block-sorting file compressor 
+that uses pthreads and achieves near-linear speedup on SMP machines. 
+We use it as an example for demonstrating AI's performance on normal desktop applications.
+
+===========================
+Compile
+===========================
+
+  cd $AI_ARCHIVE_DIR/performance/pbzip2
+  tar xvf pbzip2-1.1.6.tar.gz
+
+  mv Makefile.ai pbzip2-1.1.6/Makefile
+  cd pbzip2-1.1.6/
+  make train
+  make relax
+  make test
+
+  # Relaxing the BSets
+  python ../run.py relax 30 ./pbzip2
+
+  # Now you can test the overhead by yourself with
+  # the native app pbzip2.native and
+  # the instrumented app pbzip2.instrumented.
+  # Or you can use our test framework.
+  python ../run.py test 10 ./pbzip2
+
+===========================
+Expected Results
+===========================
+
+In our experiments, the result is:
+Average Overhead: 0.001262 ~ 0.003815
+
+A screencast of our experiment is given in http://asciinema.org/a/6191. (non-anonymous)

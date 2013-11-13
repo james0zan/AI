@@ -1,0 +1,54 @@
+OBJS = pbzip2 BZ2StreamScanner ErrorContext
+NATIVEASSEMBLES = pbzip2.s BZ2StreamScanner.s ErrorContext.s
+TRACEASSEMBLES = pbzip2-Trace.s BZ2StreamScanner-Trace.s ErrorContext-Trace.s
+RELAXASSEMBLES = pbzip2-Relax.s BZ2StreamScanner-Relax.s ErrorContext-Relax.s
+TOLERATEASSEMBLES = pbzip2-Tolerate.s BZ2StreamScanner-Tolerate.s ErrorContext-Tolerate.s
+MARKEDBC = pbzip2-Marked.bc BZ2StreamScanner-Marked.bc ErrorContext-Marked.bc
+CFLAGS = -O0 -g -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_POSIX_PTHREAD_SEMANTICS -DUSE_STACKSIZE_CUSTOMIZATION
+
+train: pbzip2.cpp BZ2StreamScanner.cpp ErrorContext.cpp
+	# AIPrepare
+	$(AI_HOME)/build/tools/id-server pbzip2.AccessInfo &
+	for i in $(OBJS); do \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/clang++ $(CFLAGS) -emit-llvm -c $$i.cpp -o $$i.bc; \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAIPrepare.so -AIPrepare <$$i.bc >$$i-Marked.bc; \
+	done
+	killall id-server
+
+	# AITrace
+	for i in $(OBJS); do \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITrace.so -AITrace <$$i-Marked.bc >$$i-Trace.bc; \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/llc $$i-Trace.bc -o $$i-Trace.s; \
+	done
+
+	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang++ $(TRACEASSEMBLES) -o pbzip2.trace -lai -lbz2 -lpthread
+	
+	# Training
+	python ../run.py train 10 ./pbzip2
+	# Compute Bsets
+	$(AI_HOME)/build/tools/trace2bset 10 trace pbzip2.AccessInfo pbzip2.BSet
+	# Sanitize Bsets
+	$(AI_HOME)/build/tools/sanitize-bset pbzip2.BSet
+
+relax:
+	for i in $(OBJS); do \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=sanitized-bset.txt -AIRelax=1 <$$i-Marked.bc >$$i-Relax.bc; \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/llc $$i-Relax.bc -o $$i-Relax.s; \
+	done
+
+	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang++ $(RELAXASSEMBLES) -o pbzip2.relax -lai -lbz2 -lpthread
+
+test: sanitized-bset.bin sanitized-bset.txt $(MARKEDBC)
+	# AITolerate and Native
+	for i in $(OBJS); do \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/llc $$i-Marked.bc -o $$i.s; \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/opt -load=$(AI_HOME)/build/llvm/AI/LLVMAITolerate.so -AITolerate -AISanitizedBSetFile=sanitized-bset.txt <$$i-Marked.bc >$$i-Tolerate.bc; \
+		$(AI_ARCHIVE_DIR)/llvm/install/bin/llc $$i-Tolerate.bc -o $$i-Tolerate.s; \
+	done
+
+	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang++ $(NATIVEASSEMBLES) -o pbzip2.native -lbz2 -lpthread
+	$(AI_ARCHIVE_DIR)/llvm/install/bin/clang++ $(TOLERATEASSEMBLES) -o pbzip2.instrumented -lai -lbz2 -lpthread
+
+
+clean:
+	rm -f *.bc *.s *.AccessInfo *.bin trace.* *.trace *.BSet *.native *.instrumented *.txt *.bz2 *.mem
