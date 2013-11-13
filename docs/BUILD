@@ -92,7 +92,7 @@ Set the environment variables:
 
     #!/usr/bin/env bash
     export LLVM_ROOT=$AI_ARCHIVE_DIR/llvm/install
-    export PATH=$PATH:/$LLVM_ROOT/bin
+    export PATH=$PATH:$LLVM_ROOT/bin
 
 ---------------------------
 Build AI
