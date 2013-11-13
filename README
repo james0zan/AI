@@ -42,8 +42,8 @@ A recommended oder of reading these documentations is given below:
             |
             v
 +-----------------------------+
-|  performance/pbzip2/README  |    # AI's overhead on desktop application. How to relax BSets.
-+-----------------------------+   
+|  performance/pbzip2/README  |    # AI's overhead on desktop application. 
++-----------------------------+    # How to relax BSets.
             |
             v
 +-----------------------------+
@@ -52,8 +52,8 @@ A recommended oder of reading these documentations is given below:
             |
             v  
 +-----------------------------+
-|   performance/fft/README    |    # AI's overhead on hpc application. Bias instrumentation.
-+-----------------------------+ 
+|   performance/fft/README    |    # AI's overhead on hpc application. 
++-----------------------------+    # Bias instrumentation.
             |
             v 
 +-----------------------------+
