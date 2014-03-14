@@ -3,7 +3,7 @@ Overview
 ===========================
 
 Anticipating Invariant (AI) is a novel invariant that can 
-anticipate the concurrency bugs (CBugs) before their real occurrence.
+anticipate the concurrency bugs (CBugs) right before their turning points.
 It enables the users to forestall the failures caused by CBugs 
 with a simple thread stalling technique, rather than resort to roll-back.
 
